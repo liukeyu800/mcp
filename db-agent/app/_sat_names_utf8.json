@@ -1,0 +1,65 @@
+{
+    "ok":  true,
+    "data":  [
+                 {
+                     "aircraft_code":  "AOS-1",
+                     "aircraft_name":  "åä¸è§æµå«æä¸å·",
+                     "publicity_name":  "åä¸è§æµä¸å·å«æ"
+                 },
+                 {
+                     "aircraft_code":  "CEMS-1",
+                     "aircraft_name":  "ä¸­å½ç¯å¢çæµå«æä¸å·",
+                     "publicity_name":  "ç¯å¢çæµä¸å·å«æ"
+                 },
+                 {
+                     "aircraft_code":  "CTTS-7",
+                     "aircraft_name":  "éä¿¡ææ¯è¯éªå«æä¸å·",
+                     "publicity_name":  "éä¿¡è¯éªä¸å·å«æ"
+                 },
+                 {
+                     "aircraft_code":  "DWS-2",
+                     "aircraft_name":  "ç¾å®³é¢è­¦å«æäºå·",
+                     "publicity_name":  "ç¾å®³é¢è­¦äºå·å«æ"
+                 },
+                 {
+                     "aircraft_code":  "LRS-1",
+                     "aircraft_name":  "å¤å\u0085é¥æå«æä¸å·",
+                     "publicity_name":  "å¤å\u0085é¥æä¸å·å«æ"
+                 },
+                 {
+                     "aircraft_code":  "MPS-9",
+                     "aircraft_name":  "æ°è±¡é¢æ¥å«æä¹å·",
+                     "publicity_name":  "æ°è±¡ä¹å·å«æ"
+                 },
+                 {
+                     "aircraft_code":  "OMS-3",
+                     "aircraft_name":  "æµ·æ´çæµå«æä¸å·",
+                     "publicity_name":  "æµ·æ´ä¸å·çæµå«æ"
+                 },
+                 {
+                     "aircraft_code":  "POS-1",
+                     "aircraft_name":  "æå°è§æµå«æä¸å·",
+                     "publicity_name":  "æå°è§æµä¸å·å«æ"
+                 },
+                 {
+                     "aircraft_code":  "PRSS-1",
+                     "aircraft_name":  "å·´åºæ¯å¦é¥æå«æä¸å·",
+                     "publicity_name":  "å·´åºæ¯å¦é¥æå«æä¸å·"
+                 },
+                 {
+                     "aircraft_code":  "RES-5",
+                     "aircraft_name":  "èµæºåæ¢å«æäºå·",
+                     "publicity_name":  "èµæºäºå·åæ¢å«æ"
+                 },
+                 {
+                     "aircraft_code":  "SES-8",
+                     "aircraft_name":  "ç§å­¦å®éªå«æå\u0085«å·",
+                     "publicity_name":  "ç§å­¦å®éªå\u0085«å·å«æ"
+                 },
+                 {
+                     "aircraft_code":  "VRSS-2",
+                     "aircraft_name":  "å§å\u0085çæé¥æå«æäºå·",
+                     "publicity_name":  "å§å\u0085çæé¥æäºå·å«æ"
+                 }
+             ]
+}

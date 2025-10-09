@@ -1,0 +1,12 @@
+tenacity
+pydantic>=2
+requests
+langchain
+langgraph
+fastapi
+uvicorn
+tenacity
+python-dotenv
+sqlalchemy
+pymysql
+psycopg2-binary
