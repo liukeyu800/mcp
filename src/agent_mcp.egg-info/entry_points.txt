@@ -1,0 +1,4 @@
+[console_scripts]
+agent-mcp-api = agent_mcp.api:app
+agent-mcp-client = agent_mcp.client:main
+agent-mcp-server = agent_mcp.server:main
