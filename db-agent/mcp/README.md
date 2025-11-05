@@ -1,330 +1,210 @@
-# Database Agent MCP Implementation
+# 数据库探索智能体
 
-基于 Model Context Protocol (MCP) 的数据库智能体实现，提供与原 app 相同的功能，但采用更现代的 MCP 架构。
+一个基于MCP (Model Context Protocol) 架构的智能数据库探索系统，支持自然语言查询、ReAct推理和实时流式对话。
 
-## 项目结构
+## ✨ 核心特性
+
+🤖 **智能对话** - 使用ReAct架构进行思考-行动-观察循环推理  
+🗄️ **数据库探索** - 自然语言转SQL查询，智能数据分析  
+🎤 **语音识别** - 本地化语音输入，基于FireRedASR模型  
+🖼️ **图片OCR** - 图片文字识别，基于PaddleOCR引擎  
+🔄 **流式响应** - 实时查看AI思考过程和执行步骤  
+📚 **会话记忆** - 完整的对话历史管理和上下文理解  
+🛡️ **安全防护** - SQL注入防护和权限控制  
+🔧 **MCP标准** - 基于标准MCP协议的工具调用系统  
+
+## 🚀 快速开始
+
+### 安装依赖
+```bash
+pip install -r requirements.txt
+```
+
+### 初始化数据库
+```bash
+python init_test_db.py
+```
+
+### 启动服务
+```bash
+# 启动主服务（端口8000）
+python main.py
+
+# 启动语音识别服务（端口8001，可选）
+python speech_service.py
+
+# 启动图片OCR服务（端口8002，可选）
+python ocr_service.py
+
+# 查看所有选项
+python main.py help
+```
+
+### 访问应用
+- 🌐 **主页**: http://localhost:8000
+- 📚 **API文档**: http://localhost:8000/docs
+- 🎮 **演示页面**: http://localhost:8000/demo
+- 🎤 **语音识别**: 在主页点击麦克风按钮使用
+- 🖼️ **图片OCR**: 在主页点击附件按钮上传图片
+
+### 可选功能
+- **语音识别**: 详细配置请参考 [SPEECH_SETUP.md](SPEECH_SETUP.md)
+- **图片OCR**: 详细配置请参考 [OCR_SETUP.md](OCR_SETUP.md)
+
+## 🎯 使用场景
+
+### 数据分析师
+```
+"用户表中有多少活跃用户？"
+"分析最近一个月的订单趋势"
+"找出销量最好的产品类别"
+```
+
+### 开发者
+```
+"检查数据库表结构"
+"查看表之间的关联关系" 
+"生成数据统计报告"
+```
+
+### 业务人员
+```
+"本月收入比上月增长了多少？"
+"哪些用户最有价值？"
+"产品销售情况如何？"
+```
+
+## 🛠️ 技术架构
+
+### 核心技术栈
+- **FastAPI** - 现代异步Web框架
+- **MCP Protocol** - 标准化工具调用协议
+- **SQLite** - 轻量级数据库存储
+- **React** - 现代化前端界面
+- **Server-Sent Events** - 实时流式响应
+
+### 架构设计
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   用户界面      │    │   API服务器     │    │   MCP工具系统   │
+│                 │    │                 │    │                 │
+│ • Web界面       │◄──►│ • REST API      │◄──►│ • 数据库工具    │
+│ • 命令行        │    │ • 流式响应      │    │ • 安全检查      │
+│ • API调用       │    │ • 会话管理      │    │ • 查询执行      │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                ▲
+                                │
+                       ┌─────────────────┐
+                       │  ReAct推理引擎  │
+                       │                 │
+                       │ • 思考循环      │
+                       │ • 行动规划      │
+                       │ • 结果观察      │
+                       └─────────────────┘
+```
+
+## 📡 API接口
+
+### 工具管理
+- `GET /api/tools` - 获取所有工具
+- `POST /api/tools/execute` - 执行工具
+
+### 智能对话
+- `POST /api/conversation/plan` - 规划执行任务
+- `POST /api/conversation/plan/stream` - 流式执行
+- `GET /api/conversation/history` - 对话历史
+
+### 数据库操作
+- `GET /api/database/tables` - 列出所有表
+- `POST /api/database/query` - 执行SQL查询
+- `GET /api/database/tables/{table}/sample` - 获取样本数据
+
+## 🎮 演示功能
+
+访问 http://localhost:8000/demo 体验：
+
+### 📊 数据库工具
+- 表结构查看
+- 数据采样预览
+- SQL查询执行
+- 结果可视化
+
+### 🤖 智能对话
+- 自然语言问答
+- 实时思考过程
+- 流式响应展示
+- 历史对话回顾
+
+### 📈 数据可视化
+- 动态图表生成
+- 多种图表类型
+- 交互式展示
+
+## 🔧 运行模式
+
+```bash
+python main.py          # API服务器（默认）
+python main.py api      # API服务器模式
+python main.py mcp      # MCP服务器模式  
+python main.py both     # 同时运行两种模式
+python main.py help     # 显示帮助信息
+```
+
+## 📁 项目结构
 
 ```
 mcp/
-├── src/agent_mcp/
-│   ├── core/                # 核心模块
-│   │   ├── schemas.py       # 数据模型定义
-│   │   └── __init__.py
-│   ├── tools/               # 工具模块
-│   │   └── database/        # 数据库工具包 (重构后)
-│   │       ├── client.py              # 主协调器
-│   │       ├── session_manager.py     # 会话管理
-│   │       ├── execution_engine.py    # 执行引擎
-│   │       ├── action_executor.py     # 动作执行器
-│   │       ├── query_strategy.py      # 查询策略
-│   │       ├── knowledge_manager.py   # 知识管理
-│   │       ├── observation_processor.py # 观察处理器
-│   │       └── README.md              # 数据库工具详细文档
-│   ├── server.py            # MCP 服务器实现
-│   ├── api.py               # FastAPI 接口
-│   ├── memory.py            # 记忆管理
-│   ├── guard.py             # SQL 安全验证
-│   └── __init__.py
-├── run_api.py               # 启动 API 服务器
-├── run_server.py            # 启动 MCP 服务器
-├── pyproject.toml           # 项目配置
-└── README.md                # 本文档
+├── main.py                 # 🎯 统一入口
+├── src/                    # 核心代码
+│   ├── core/              # 核心功能
+│   │   ├── mcp_tool_registry.py          # MCP工具注册
+│   │   ├── unified_conversation_manager.py # 对话管理
+│   │   ├── schemas.py                     # 数据模型
+│   │   └── ...
+│   ├── api/               # API接口
+│   │   ├── unified_complete_api.py        # 统一API
+│   │   └── demo_api.py                    # 演示页面
+│   ├── tools/             # 工具实现
+│   │   ├── database/                      # 数据库工具
+│   │   └── charts/                        # 图表工具
+│   └── client/            # MCP客户端
+├── frontend/              # React前端
+├── init_test_db.py        # 数据库初始化
+└── README.md              # 项目文档
 ```
 
-## 核心特性
+## 🛡️ 安全特性
 
-### 1. MCP 架构
-- **服务器端**: 提供数据库操作工具 (list_tables, describe_table, run_sql, sample_rows)
-- **客户端**: 实现 ReAct 规划和工具调用逻辑
-- **协议**: 基于标准 MCP 协议进行通信
+- **SQL注入防护** - 自动检测和阻止危险SQL
+- **权限控制** - 只允许安全的查询操作
+- **查询限制** - 限制返回结果数量
+- **操作审计** - 记录所有数据库操作
 
-### 2. 模块化数据库工具包 (重构后)
-- **主协调器 (client.py)**: 统一入口
-- **会话管理器 (session_manager.py)**: 专门处理用户会话和状态管理
-- **执行引擎 (execution_engine.py)**: 任务规划、执行控制和错误处理
-- **动作执行器 (action_executor.py)**: 具体数据库操作的执行和验证
-- **查询策略 (query_strategy.py)**: 智能查询决策和SQL生成
-- **知识管理器 (knowledge_manager.py)**: 数据库结构学习和知识积累
-- **观察处理器 (observation_processor.py)**: 结果分析和智能解释
-
-### 3. 与原 app 兼容
-- 提供相同的 `/plan` 接口
-- 支持会话管理 (thread_id)
-- 保持相同的响应格式
-- 兼容原有的数据库接口
-
-### 4. 安全机制
-- SQL 注入防护
-- 只读查询验证
-- LIMIT 子句强制添加
-- 危险操作黑名单
-
-### 5. 智能特性
-- **自然语言理解**: 理解用户的自然语言查询需求
-- **自动表发现**: 根据查询内容自动识别相关表
-- **智能SQL生成**: 生成优化的SQL查询语句
-- **上下文感知**: 基于对话历史提供更准确的查询
-- **错误自愈**: 自动检测和修复SQL语法错误
-
-### 6. 记忆管理
-- 会话状态持久化
-- 知识缓存 (known_tables, known_schemas)
-- 步骤历史记录
-- 上下文摘要生成
-
-## 安装和运行
-
-### 1. 安装依赖
-
-```bash
-cd mcp
-pip install -e .
-```
-
-### 2. 配置环境变量
-
-创建 `.env` 文件：
-
-```env
-# 数据库配置
-DATABASE_URL=sqlite:///path/to/your/database.db
-
-# LLM 配置
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4
-
-# 服务配置
-MCP_API_PORT=9623
-```
-
-### 3. 启动服务
-
-#### 方式一：启动 FastAPI 接口 (推荐)
-
-```bash
-python run_api.py
-```
-
-访问 http://localhost:9623/docs 查看 API 文档
-
-#### 方式二：分别启动服务器和客户端
-
-```bash
-# 终端1: 启动 MCP 服务器
-python run_server.py
-
-# 终端2: 使用客户端
-python -c "
-import asyncio
-from src.db_agent_mcp.client import DatabaseMCPClient
-
-async def test():
-    client = DatabaseMCPClient()
-    async with client.connect_to_server(['python', 'run_server.py']):
-        result = await client.call_tool('list_tables', {})
-        print(result)
-
-asyncio.run(test())
-"
-```
-
-## API 接口
-
-### 主要接口
-
-#### POST /plan
-与原 app 兼容的规划接口
-
-```json
-{
-  "question": "统计 user 表总数",
-  "thread_id": "optional_session_id",
-  "max_steps": 12
-}
-```
-
-响应：
-```json
-{
-  "ok": true,
-  "answer": {"ok": true, "data": [{"total": 1000}]},
-  "steps": [...],
-  "known_tables": ["user", "order"],
-  "thread_id": "session_id"
-}
-```
-
-#### 会话管理
-- `GET /sessions` - 列出所有会话
-- `GET /sessions/{session_id}` - 获取会话详情
-- `DELETE /sessions/{session_id}` - 删除会话
-
-#### 数据库接口
-- `POST /list_tables` - 列出所有表
-- `POST /describe_table` - 描述表结构
-- `POST /read_query` - 执行 SQL 查询
-
-## 数据库工具包使用指南
-
-### 快速开始
-
-```python
-from src.agent_mcp.tools.database.client import DatabaseMCPClient
-
-# 创建数据库客户端
-client = DatabaseMCPClient()
-
-# 执行自然语言查询
-result = await client.plan_and_execute(
-    question="查找销售额最高的前10个产品",
-    max_steps=10
-)
-
-print(result)
-```
-
-### 详细文档
-
-数据库工具包的详细使用说明请参考：
-📖 [数据库工具包详细文档](src/agent_mcp/tools/database/README.md)
-
-该文档包含：
-- 🏗️ 完整的架构设计说明
-- 🚀 所有核心功能介绍
-- 📦 各模块详细说明
-- 🔧 使用方法和示例
-- 🎯 特色功能展示
-- 🧪 测试和配置指南
-
-### 重构成果
-
-经过模块化重构，数据库工具包现在具有：
-- ✅ **代码精简**: client.py从382行减少到205行 (减少46%)
-- ✅ **模块化设计**: 7个专用模块，各司其职
-- ✅ **单一职责**: 每个模块只负责一个核心功能
-- ✅ **易于扩展**: 新功能可以独立开发和测试
-- ✅ **高可维护性**: 清晰的代码结构和接口设计
-
-## 测试
-
-### 运行测试
-```bash
-# 使用pytest运行测试套件
-python -m pytest tests/ -v
-
-# 或者运行特定的测试模块
-python -m pytest tests/test_database_tools.py -v
-```
-
-测试内容包括：
-1. MCP 客户端直接调用
-2. FastAPI 接口测试
-3. 与原 app 功能对比
-4. 记忆管理器测试
-5. 模块化组件测试
-6. 重构后功能完整性验证
-
-## MCP vs 原 app 对比
-
-| 特性 | 原 app | MCP 实现 |
-|------|--------|----------|
-| 架构 | LangGraph + FastAPI | MCP Server + Client |
-| 工具调用 | 内置函数 | MCP 协议 |
-| 状态管理 | LangGraph MemorySaver | 自定义 MemoryManager |
-| 扩展性 | 单体应用 | 分布式架构 |
-| 协议标准 | 自定义 | 标准 MCP 协议 |
-| 部署方式 | 单进程 | 多进程/分布式 |
-
-## 优势
-
-1. **标准化**: 基于 MCP 标准协议，更好的互操作性
-2. **模块化**: 服务器和客户端分离，便于独立部署和扩展
-3. **可扩展**: 易于添加新的工具和功能
-4. **兼容性**: 保持与原 app 的 API 兼容
-5. **安全性**: 继承原有的安全机制
-
-## 开发指南
+## 🚀 扩展开发
 
 ### 添加新工具
+1. 继承 `BaseMCPToolProvider` 创建工具提供者
+2. 实现工具逻辑和参数定义
+3. 在主入口注册工具提供者
 
-1. 在 `server.py` 中定义新工具
-2. 在 `client.py` 中添加调用逻辑
-3. 更新 `schemas.py` 中的动作类型
+### 自定义对话流程
+1. 修改 `unified_conversation_manager.py`
+2. 实现自定义ReAct循环
+3. 添加新的推理步骤
 
-### 扩展记忆功能
+### 扩展API功能
+1. 在 `unified_complete_api.py` 添加路由
+2. 使用统一的响应格式
+3. 集成到现有工具系统
 
-1. 修改 `AgentState` 模型
-2. 更新 `MemoryManager` 类
-3. 调整上下文摘要逻辑
+## 📄 许可证
 
-### 自定义安全策略
+MIT License - 详见 [LICENSE](LICENSE) 文件
 
-1. 修改 `guard.py` 中的正则表达式
-2. 添加新的验证函数
-3. 更新黑名单规则
+## 🤝 贡献
 
-## 故障排除
+欢迎提交Issue和Pull Request！
 
-### 常见问题
+---
 
-1. **连接失败**: 检查 MCP 服务器是否正常启动
-2. **数据库错误**: 验证 DATABASE_URL 配置
-3. **LLM 调用失败**: 检查 API 密钥和网络连接
-4. **权限错误**: 确保数据库文件可读写
-
-### 调试模式
-
-设置环境变量启用调试：
-
-```bash
-export DEBUG=1
-python run_api.py
-```
-
-## 许可证
-
-与原项目保持一致的许可证。
-
-## 架构设计
-
-- **MCP Server**: 提供数据库操作工具 (list_tables, describe_table, run_sql 等)
-- **MCP Client**: 处理 ReAct 规划和工具调用逻辑
-- **State Management**: 实现状态管理和记忆机制
-- **FastAPI Interface**: 提供与原 app 相同的 `/plan` 端点
-
-## 安装
-
-```bash
-cd mcp
-pip install -e .
-```
-
-## 配置
-
-复制 app 目录的 `.env` 文件到 mcp 目录：
-```bash
-cp ../app/.env .env
-```
-
-## 运行
-
-启动 MCP 服务器：
-```bash
-db-agent-mcp-server
-```
-
-启动 FastAPI 接口：
-```bash
-uvicorn db_agent_mcp.api:app --host 0.0.0.0 --port 9623
-```
-
-## 特性
-
-- ✅ 与原 app 相同的 ReAct 规划逻辑
-- ✅ 智能表优先级排序
-- ✅ 状态缓存和记忆机制
-- ✅ SQL 安全守卫
-- ✅ 错误处理和重试机制
-- ✅ 中文编码修复
-- ✅ 计数问题识别和优化
+**让数据库探索变得智能而简单** 🚀

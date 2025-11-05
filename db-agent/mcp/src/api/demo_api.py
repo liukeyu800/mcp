@@ -16,6 +16,9 @@ async def demo_page():
     <html>
     <head>
         <title>Database Agent MCP Demo</title>
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+        <meta http-equiv="Pragma" content="no-cache">
+        <meta http-equiv="Expires" content="0">
         <script src="https://unpkg.com/echarts@5.4.3/dist/echarts.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js" onerror="console.error('备用CDN也无法加载ECharts')"></script>
         <script>
@@ -73,7 +76,7 @@ async def demo_page():
     <body>
         <div class="container">
             <h1>Database Agent MCP 演示</h1>
-            <p>这是一个数据库代理，提供安全的数据库操作功能和智能对话：</p>
+            <p>这是一个数据库代理，提供安全的数据库操作功能和智能对话 <small style="color: #999;">(v3.0 - 强制刷新测试)</small></p>
             
             <!-- 标签页 -->
             <div class="tabs">
@@ -223,7 +226,7 @@ async def demo_page():
                 resultDiv.textContent = '调用中...';
                 
                 try {
-                    const response = await fetch('/tools/call', {
+                    const response = await fetch('/api/tools/call', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({tool_name: toolName, parameters: params})
@@ -268,7 +271,7 @@ async def demo_page():
                 const resultDiv = document.getElementById('result');
                 
                 try {
-                    const response = await fetch('/tools/call', {
+                    const response = await fetch('/api/tools/call', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({tool_name: 'list_tables', parameters: {}})
@@ -368,12 +371,24 @@ async def demo_page():
                 chatResult.textContent = '正在处理您的问题...';
                 
                 try {
-                    const response = await fetch('/conversation/plan', {
+                    // 添加时间戳防止缓存
+                    const response = await fetch(`/api/conversation/plan?_t=${Date.now()}`, {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache'
+                        },
                         body: JSON.stringify({question: question})
                     });
                     const data = await response.json();
+                    
+                    // 调试：打印完整的响应数据（带时间戳确认代码已更新）
+                    console.log('=== DEBUG OUTPUT (v3.0) ===');
+                    console.log('API返回数据:', data);
+                    console.log('步骤数据:', data.steps);
+                    if (data.steps && data.steps.length > 0) {
+                        console.log('第一个步骤的所有字段:', Object.keys(data.steps[0]));
+                    }
                     
                     if (data.ok) {
                         let result = `问题: ${question}\\n\\n`;
@@ -395,9 +410,16 @@ async def demo_page():
                         result += `答案: ${answerText}\\n\\n`;
                         result += `执行步骤 (${data.steps.length}步):\\n`;
                         data.steps.forEach((step, index) => {
-                            result += `${index + 1}. ${step.thought}\\n`;
-                            if (step.action && step.action !== 'reasoning') {
-                                result += `   动作: ${step.action}\\n`;
+                            // 调试：打印每个步骤
+                            console.log(`步骤 ${index + 1}:`, step);
+                            
+                            // 优先使用content，其次是thought，最后是step_type
+                            const stepText = step.content || step.thought || `[${step.step_type}]`;
+                            console.log(`步骤 ${index + 1} 文本:`, stepText);
+                            
+                            result += `${index + 1}. ${stepText}\\n`;
+                            if (step.tool_name) {
+                                result += `   工具: ${step.tool_name}\\n`;
                             }
                         });
                         chatResult.textContent = result;
@@ -429,7 +451,7 @@ async def demo_page():
                 streamSteps.innerHTML = '<div class="loading"></div> 正在处理您的问题...';
                 
                 try {
-                    const response = await fetch('/conversation/plan/stream', {
+                    const response = await fetch('/api/conversation/plan/stream', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({question: question})
@@ -642,7 +664,7 @@ async def demo_page():
                 console.log('ECharts库已成功加载');
                 
                 try {
-                    const response = await fetch('/tools/call', {
+                    const response = await fetch('/api/tools/call', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({tool_name: toolName, parameters: params})
