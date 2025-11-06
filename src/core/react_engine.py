@@ -468,6 +468,15 @@ class ReActEngine:
         """
         base_prompt = get_flexible_system_prompt()
         
+        # 在系统提示词开头添加强调：关注当前用户问题
+        base_prompt = """**⚠️ 重要提示：关注当前用户问题**
+
+在对话历史中，你可能会看到历史对话摘要和之前的消息。**请务必关注最后一条用户消息，这是当前用户的问题**，你需要回答的是这个问题，而不是历史问题。
+
+如果看到"## 当前用户问题："标记，那后面的内容就是你需要回答的问题。
+
+---\n\n""" + base_prompt
+        
         # 从工具注册系统动态生成工具列表
         tools = self.tool_registry.get_all_tools()
         if tools:

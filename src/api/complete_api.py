@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from uuid import uuid4
+from datetime import datetime
 import asyncio
 import json
 
@@ -626,30 +627,117 @@ async def get_conversation(thread_id: str):
         if state is None:
             raise HTTPException(status_code=404, detail=f"对话 {thread_id} 不存在")
         
-        # 过滤消息，只保留用户消息和最终答案（过滤掉过程步骤）
-        filtered_messages = []
-        for msg in state.messages:
-            content = msg.get("content", "")
-            role = msg.get("role", "")
-            
-            # 保留用户消息
-            if role == "user":
-                # 过滤掉错误提示消息
-                if not content.startswith("格式错误：") and not content.startswith("错误："):
-                    filtered_messages.append(msg)
-            # 保留助手消息中的最终答案（不是过程步骤）
-            elif role == "assistant":
-                # 过滤掉过程步骤（思考、行动、观察）
-                if not (content.startswith("思考:") or 
-                        content.startswith("行动:") or 
-                        content.startswith("观察:") or
-                        content.startswith("## 历史对话摘要")):
-                    filtered_messages.append(msg)
-            # 保留系统消息（但通常不需要显示）
-            elif role == "system":
-                # 系统消息通常不显示，跳过
+        # 结构化消息：按turn_id分组，保留完整信息
+        # 同时提供过滤后的消息（只显示最终答案）和完整消息（包含过程步骤）
+        structured_messages = []
+        turns = {}  # {turn_id: {question, process_steps, final_answer}}
         
-        # 如果有最终答案，确保它被包含在消息中
+        # 如果没有turn_id的消息，使用一个默认的turn_id
+        default_turn_id = "legacy-turn-0"
+        
+        for msg in state.messages:
+            msg_type = msg.get("message_type", "")
+            turn_id = msg.get("turn_id", "")
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            
+            # 跳过系统消息和错误提示
+            if role == "system":
+                continue
+            if content.startswith("格式错误：") or content.startswith("错误："):
+                continue
+            
+            # 向后兼容：如果没有turn_id，根据消息类型推断
+            if not turn_id:
+                # 如果是用户消息，创建新的turn
+                if role == "user" and not msg_type:
+                    turn_id = default_turn_id
+                # 如果是助手消息，使用最近的turn_id
+                elif role == "assistant":
+                    # 查找最近的用户消息的turn_id
+                    for prev_msg in reversed(state.messages):
+                        if prev_msg.get("role") == "user" and prev_msg.get("turn_id"):
+                            turn_id = prev_msg.get("turn_id")
+                            break
+                    if not turn_id:
+                        turn_id = default_turn_id
+            
+            # 初始化轮次
+            if turn_id and turn_id not in turns:
+                turns[turn_id] = {
+                    "turn_id": turn_id,
+                    "question": None,
+                    "process_steps": [],
+                    "final_answer": None,
+                    "timestamp": msg.get("timestamp")
+                }
+            
+            # 分类消息
+            if msg_type == "user_question" or (role == "user" and not msg_type):
+                if turn_id in turns:
+                    turns[turn_id]["question"] = content
+            elif msg_type == "assistant_process" or (role == "assistant" and content.startswith(("思考:", "行动:", "观察:"))):
+                if turn_id in turns:
+                    step_data = {
+                        "step_type": msg.get("step_type", ""),
+                        "step_index": msg.get("step_index", -1),
+                        "content": content,
+                        "timestamp": msg.get("timestamp")
+                    }
+                    # 如果是action或observation步骤，添加工具信息
+                    if msg.get("step_type") in ["action", "observation"] or content.startswith(("行动:", "观察:")):
+                        if content.startswith("行动:"):
+                            step_data["step_type"] = "action"
+                        elif content.startswith("观察:"):
+                            step_data["step_type"] = "observation"
+                        
+                        step_data["tool_name"] = msg.get("tool_name")
+                        if step_data["step_type"] == "action":
+                            step_data["tool_params"] = msg.get("tool_params")
+                        elif step_data["step_type"] == "observation":
+                            step_data["tool_result"] = msg.get("tool_result")
+                    turns[turn_id]["process_steps"].append(step_data)
+            elif msg_type == "assistant_final_answer" or (role == "assistant" and not content.startswith(("思考:", "行动:", "观察:")) and not msg_type):
+                if turn_id in turns:
+                    # 只有不是过程步骤的助手消息才作为最终答案
+                    if not content.startswith(("思考:", "行动:", "观察:", "## 历史对话摘要")):
+                        turns[turn_id]["final_answer"] = content
+        
+        # 构建结构化消息列表（按时间戳排序）
+        sorted_turns = sorted(
+            turns.items(), 
+            key=lambda x: x[1].get("timestamp") or ""
+        )
+        for turn_id, turn_data in sorted_turns:
+            structured_messages.append({
+                "turn_id": turn_id,
+                "question": turn_data["question"],
+                "process_steps": sorted(turn_data["process_steps"], key=lambda s: s.get("step_index", -1)),  # 按步骤索引排序
+                "final_answer": turn_data["final_answer"],
+                "timestamp": turn_data["timestamp"]
+            })
+        
+        # 构建过滤后的消息（只显示问题和最终答案，用于简单显示）
+        filtered_messages = []
+        for turn in structured_messages:
+            if turn["question"]:
+                filtered_messages.append({
+                    "role": "user",
+                    "content": turn["question"],
+                    "message_type": "user_question",
+                    "turn_id": turn["turn_id"],
+                    "timestamp": turn["timestamp"]
+                })
+            if turn["final_answer"]:
+                filtered_messages.append({
+                    "role": "assistant",
+                    "content": turn["final_answer"],
+                    "message_type": "assistant_final_answer",
+                    "turn_id": turn["turn_id"],
+                    "timestamp": turn["timestamp"]
+                })
+        
+        # 如果有最终答案但不在消息中，添加它
         if state.answer and state.answer.get("ok") and state.answer.get("data"):
             final_answer = state.answer["data"]
             # 检查最后一条助手消息是否已经是最终答案
@@ -658,7 +746,9 @@ async def get_conversation(thread_id: str):
                filtered_messages[-1].get("content") != final_answer:
                 filtered_messages.append({
                     "role": "assistant",
-                    "content": final_answer
+                    "content": final_answer,
+                    "message_type": "assistant_final_answer",
+                    "timestamp": datetime.now().isoformat()
                 })
         
         # 创建过滤后的状态
@@ -669,7 +759,11 @@ async def get_conversation(thread_id: str):
             "ok": True,
             "thread_id": thread_id,
             "state": state_dict,
-            "final_answer": state.answer.get("data") if state.answer else None
+            "final_answer": state.answer.get("data") if state.answer else None,
+            # 结构化消息：用于前端可视化工具调用过程
+            "structured_messages": structured_messages,
+            # 完整消息（包含所有过程步骤，用于调试）
+            "full_messages": [msg for msg in state.messages if msg.get("role") != "system"]
         }
         
     except HTTPException:

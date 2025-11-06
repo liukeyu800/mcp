@@ -1,0 +1,50 @@
+# 后端核心依赖
+# Python版本要求: >=3.8 (推荐使用 Python 3.9+ 或 3.10+)
+
+# MCP (Model Context Protocol) 核心
+mcp>=1.0.0
+
+# Web框架
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# 数据库相关
+sqlalchemy>=2.0.0
+pymysql>=1.1.0
+
+# 配置管理
+python-dotenv>=1.0.0
+
+# 数据验证和序列化
+pydantic>=2.0.0
+
+# HTTP客户端
+httpx>=0.25.0
+requests>=2.31.0
+
+# 异步文件操作
+aiofiles>=23.0.0
+
+# 重试机制
+tenacity>=8.0.0
+
+# OpenAI API (用于LLM调用)
+openai>=1.0.0
+
+# ==================== 可选依赖 ====================
+# 以下依赖仅在使用对应功能时需要安装
+
+# OCR功能 (如果使用ocr_service.py)
+# paddlepaddle>=2.5.0
+# paddleocr>=2.7.0
+
+# 语音识别功能 (如果使用speech_service.py和FireRedASR)
+# 需要安装FireRedASR子项目的依赖，见 FireRedASR/requirements.txt
+# 包括: torch>=2.0.0, transformers>=4.46.3, numpy>=1.26.1 等
+
+# 开发依赖 (可选，用于代码格式化和测试)
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0
+# black>=23.0.0
+# isort>=5.12.0
+

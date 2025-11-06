@@ -36,6 +36,9 @@ class ConversationCoordinator:
         
         print(f"[Conversation Coordinator] 开始运行对话流，用户输入: {user_input}, 会话ID: {session_id}, 继续对话: {continue_conversation}")
         
+        # 生成当前对话轮次的ID（用于关联问题和回答）
+        current_turn_id = str(uuid4())
+        
         # 尝试从历史状态恢复
         state = None
         messages = None
@@ -72,8 +75,14 @@ class ConversationCoordinator:
                                     step.action, step.observation
                                 ))
                 
-                # 添加新的用户输入
-                messages.append({"role": "user", "content": user_input})
+                # 添加新的用户输入（继续对话时也需要标记）
+                messages.append({
+                    "role": "user", 
+                    "content": user_input,
+                    "message_type": "user_question",
+                    "turn_id": current_turn_id,
+                    "timestamp": datetime.now().isoformat()
+                })
         
         # 如果没有恢复状态，创建新状态
         if state is None:
@@ -99,8 +108,23 @@ class ConversationCoordinator:
             # 构建初始消息
             messages = [
                 self.react_engine.build_system_message(state=state),
-                {"role": "user", "content": user_input}
+                {
+                    "role": "user", 
+                    "content": user_input,
+                    "message_type": "user_question",
+                    "turn_id": current_turn_id,
+                    "timestamp": datetime.now().isoformat()
+                }
             ]
+        else:
+            # 继续对话时，添加新的用户消息
+            messages.append({
+                "role": "user", 
+                "content": user_input,
+                "message_type": "user_question",
+                "turn_id": current_turn_id,
+                "timestamp": datetime.now().isoformat()
+            })
         
         # 计算已执行步数
         # 重要：区分"继续之前的任务"和"在同一会话中问新问题"
@@ -134,8 +158,10 @@ class ConversationCoordinator:
                 print(f"[Conversation Coordinator] 调用ReAct引擎...")
                 # 压缩消息以避免上下文超限
                 # 注意：messages列表保持完整用于保存，只压缩发送给LLM的版本
+                # 重要：在压缩时，明确区分当前用户问题和历史对话
                 compressed_messages = self._compress_messages_for_llm(
                     messages, state, 
+                    current_user_input=user_input,  # 传递当前用户输入，确保不被压缩
                     recent_window=self.message_compress_recent_window,
                     max_compressed_length=self.message_compress_max_length
                 )
@@ -155,8 +181,16 @@ class ConversationCoordinator:
                         "content": react_result["data"]["thought"]
                     }}
                     
-                    # 添加助手消息到对话历史
-                    messages.append({"role": "assistant", "content": f"思考: {react_result['data']['thought']}"})
+                    # 添加助手消息到对话历史（标记为过程步骤）
+                    messages.append({
+                        "role": "assistant", 
+                        "content": react_result["data"]["thought"],
+                        "message_type": "assistant_process",
+                        "turn_id": current_turn_id,
+                        "step_type": "reasoning",
+                        "step_index": step.step_index,
+                        "timestamp": datetime.now().isoformat()
+                    })
                     # 更新状态的消息列表
                     state.messages = messages.copy()
                 
@@ -187,12 +221,39 @@ class ConversationCoordinator:
                         "tool_name": react_result["data"]["tool_name"]
                     }}
                     
-                    # 添加消息到对话历史
-                    messages.append({"role": "assistant", "content": f"行动: {react_result['data']['thought']}"})
-                    messages.append(self.react_engine.build_observation_message(
+                    # 添加行动消息到对话历史（标记为过程步骤）
+                    messages.append({
+                        "role": "assistant", 
+                        "content": react_result["data"]["thought"],
+                        "message_type": "assistant_process",
+                        "turn_id": current_turn_id,
+                        "step_type": "action",
+                        "step_index": action_step.step_index,
+                        "tool_name": react_result["data"]["tool_name"],
+                        "tool_params": react_result["data"]["parameters"],
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    # 添加观察消息（标记为过程步骤）
+                    # 提取观察内容（去掉"观察:"前缀）
+                    observation_content = self.react_engine.build_observation_message(
                         react_result["data"]["tool_name"], 
                         react_result["data"]["result"]
-                    ))
+                    )
+                    obs_content = observation_content["content"]
+                    if obs_content.startswith("观察:"):
+                        obs_content = obs_content[3:].strip()
+                    
+                    messages.append({
+                        "role": "user",  # 观察消息使用user角色（符合ReAct格式）
+                        "content": obs_content,
+                        "message_type": "assistant_process",
+                        "turn_id": current_turn_id,
+                        "step_type": "observation",
+                        "step_index": observation_step.step_index,
+                        "tool_name": react_result["data"]["tool_name"],
+                        "tool_result": react_result["data"]["result"],  # 保存原始结果
+                        "timestamp": datetime.now().isoformat()
+                    })
                     # 更新状态的消息列表
                     state.messages = messages.copy()
                 
@@ -253,8 +314,14 @@ class ConversationCoordinator:
                     # 完成对话
                     state.done = True
                     state.answer = {"ok": True, "data": react_result["data"]["answer"]}
-                    # 添加最终答案到消息历史
-                    messages.append({"role": "assistant", "content": react_result["data"]["answer"]})
+                    # 添加最终答案到消息历史（标记为最终答案）
+                    messages.append({
+                        "role": "assistant", 
+                        "content": react_result["data"]["answer"],
+                        "message_type": "assistant_final_answer",
+                        "turn_id": current_turn_id,
+                        "timestamp": datetime.now().isoformat()
+                    })
                     state.messages = messages.copy()
                     
                     # 更新状态信息：从工具执行结果中提取表信息
@@ -475,6 +542,7 @@ class ConversationCoordinator:
         print(f"[Conversation Coordinator] 状态更新完成: 已知表 {len(state.known_tables)} 个, 已知结构 {len(state.known_schemas)} 个")
     
     def _compress_messages_for_llm(self, full_messages: List[Dict[str, str]], state: AgentState, 
+                                    current_user_input: str = None,
                                     recent_window: int = 10, max_compressed_length: int = 5000) -> List[Dict[str, str]]:
         """压缩消息列表以避免上下文超限（带缓存优化）
         
@@ -497,9 +565,25 @@ class ConversationCoordinator:
         
         # 如果消息太多，压缩较早的消息
         if len(conversation_messages) > recent_window:
-            # 保留最近的消息
-            recent_messages = conversation_messages[-recent_window:]
-            older_messages = conversation_messages[:-recent_window]
+            # 确保最后一条用户消息（当前问题）被保留
+            # 找到最后一条用户消息
+            last_user_msg_idx = -1
+            for i in range(len(conversation_messages) - 1, -1, -1):
+                if conversation_messages[i].get("role") == "user" and \
+                   not conversation_messages[i].get("content", "").startswith("观察:"):
+                    last_user_msg_idx = i
+                    break
+            
+            # 保留最近的消息，但确保包含最后一条用户消息
+            if last_user_msg_idx >= 0:
+                # 确保保留窗口包含最后一条用户消息及其后续消息
+                min_recent_start = max(0, last_user_msg_idx - recent_window + 1)
+                recent_messages = conversation_messages[min_recent_start:]
+                older_messages = conversation_messages[:min_recent_start]
+            else:
+                # 如果没有找到用户消息，使用默认逻辑
+                recent_messages = conversation_messages[-recent_window:]
+                older_messages = conversation_messages[:-recent_window]
             
             # 检查是否可以使用缓存的压缩摘要
             config_hash = self._get_compress_config_hash(recent_window, max_compressed_length)
@@ -514,8 +598,11 @@ class ConversationCoordinator:
                 compressed_summary = state.compressed_summary
                 print(f"[Conversation Coordinator] 使用缓存的压缩摘要（{len(older_messages)}条消息）")
             else:
-                # 重新计算压缩摘要
-                compressed_summary = self._summarize_older_messages(older_messages, state)
+                # 重新计算压缩摘要（排除当前用户问题）
+                compressed_summary = self._summarize_older_messages(
+                    older_messages, state, 
+                    exclude_user_input=current_user_input  # 确保不包含当前问题
+                )
                 # 更新缓存
                 state.compressed_summary = compressed_summary
                 state.compressed_message_count = len(older_messages)
@@ -527,15 +614,33 @@ class ConversationCoordinator:
             if system_msg:
                 compressed.append(system_msg)
             
-            # 如果有摘要，添加摘要消息
+            # 如果有摘要，添加摘要消息（明确标注为历史，不是当前问题）
             if compressed_summary:
                 compressed.append({
                     "role": "system",
-                    "content": f"## 历史对话摘要（已压缩{len(older_messages)}条消息）\n\n{compressed_summary}"
+                    "content": f"""## ⚠️ 历史对话摘要（已压缩{len(older_messages)}条消息）
+
+**重要**：以下内容来自历史对话，**不是**当前用户的问题。当前用户的问题在最后。
+
+{compressed_summary}
+
+---
+**分隔线**：以下开始是当前对话的最近消息"""
                 })
             
-            # 添加最近的消息
+            # 添加最近的消息（确保最后一条是当前用户问题）
             compressed.extend(recent_messages)
+            
+            # 确保最后一条用户消息清晰可见（添加强调）
+            if compressed and compressed[-1].get("role") == "user":
+                last_user_msg = compressed[-1]
+                user_content = last_user_msg.get("content", "")
+                # 如果最后一条是用户消息，确保它是当前问题（不是历史）
+                if not user_content.startswith("## 当前用户问题："):
+                    compressed[-1] = {
+                        **last_user_msg,
+                        "content": f"## 当前用户问题：\n{user_content}"
+                    }
             
             # 检查总长度，如果还是太长，进一步压缩observation消息
             total_length = sum(len(str(msg.get("content", ""))) for msg in compressed)
@@ -557,7 +662,8 @@ class ConversationCoordinator:
         config_str = f"{recent_window}_{max_compressed_length}"
         return hashlib.md5(config_str.encode()).hexdigest()
     
-    def _summarize_older_messages(self, messages: List[Dict[str, str]], state: AgentState) -> str:
+    def _summarize_older_messages(self, messages: List[Dict[str, str]], state: AgentState, 
+                                   exclude_user_input: str = None) -> str:
         """总结较早的消息
         
         Args:
@@ -572,29 +678,54 @@ class ConversationCoordinator:
         # 提取关键信息
         user_questions = []
         key_actions = []
+        final_answers = []
         
         for msg in messages:
             role = msg.get("role", "")
             content = msg.get("content", "")
+            msg_type = msg.get("message_type", "")
             
             if role == "user" and content:
-                # 提取用户问题（非观察消息）
-                if not content.startswith("观察:"):
-                    user_questions.append(content[:100])  # 截断到100字符
+                # 排除当前用户问题（避免在摘要中重复）
+                if exclude_user_input and content.strip() == exclude_user_input.strip():
+                    continue
+                # 提取用户问题（非观察消息和错误消息）
+                if not content.startswith("观察:") and not content.startswith("格式错误：") and not content.startswith("错误："):
+                    # 如果是新格式，提取问题
+                    if msg_type == "user_question":
+                        user_questions.append(content[:100])  # 截断到100字符
+                    elif not msg_type:  # 旧格式兼容
+                        user_questions.append(content[:100])
             
             elif role == "assistant":
+                # 提取最终答案
+                if msg_type == "assistant_final_answer" or (not msg_type and not content.startswith(("思考:", "行动:", "观察:"))):
+                    final_answers.append(content[:150])
                 # 提取助手的关键行动
-                if "行动:" in content or "思考:" in content:
-                    key_actions.append(content[:150])  # 截断到150字符
+                elif "行动:" in content or "思考:" in content or msg_type == "assistant_process":
+                    tool_name = msg.get("tool_name", "")
+                    if tool_name:
+                        key_actions.append(f"调用工具: {tool_name}")
         
-        # 构建摘要
+        # 构建摘要（明确标注这是历史对话，不是当前问题）
+        summary_parts.append("**⚠️ 这是历史对话摘要 - 不是当前用户的问题**\n")
+        summary_parts.append("**当前用户的问题在最后一条用户消息中，请关注那个问题，而不是这些历史问题。**\n")
+        
         if user_questions:
-            summary_parts.append(f"**之前的用户问题**: {len(user_questions)}个问题")
-            if len(user_questions) <= 3:
-                summary_parts.append("\n".join(f"- {q}" for q in user_questions))
+            summary_parts.append(f"\n**历史用户问题**（已处理，不是当前问题）({len(user_questions)}个):")
+            if len(user_questions) <= 2:
+                summary_parts.append("\n".join(f"- [历史] {q}" for q in user_questions))
             else:
-                summary_parts.append(f"- {user_questions[0]}")
-                summary_parts.append(f"- ... 还有{len(user_questions)-1}个问题")
+                summary_parts.append(f"- [历史] {user_questions[0]}")
+                summary_parts.append(f"- [历史] ... 还有{len(user_questions)-1}个历史问题（已处理）")
+        
+        if final_answers:
+            summary_parts.append(f"\n**历史回答** ({len(final_answers)}个，已省略具体内容)")
+        
+        if key_actions:
+            summary_parts.append(f"\n**历史工具调用** ({len(key_actions)}次): {', '.join(key_actions[:5])}")
+            if len(key_actions) > 5:
+                summary_parts.append(f"  ... 还有{len(key_actions)-5}次工具调用")
         
         # 添加已知信息摘要
         if state.known_tables:
